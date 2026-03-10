@@ -8,4 +8,6 @@ on:
 jobs:
   kernelCI:
     uses: ctrliq/kernel-src-tree/.github/workflows/kernel-build-and-test-multiarch.yml@shreeya_kernelci_multiarch
+    with:
+      architectures: 'x86_64'
     secrets: inherit
