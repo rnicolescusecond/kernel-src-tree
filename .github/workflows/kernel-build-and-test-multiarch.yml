@@ -7,7 +7,7 @@ on:
 
 jobs:
   kernelCI:
-    uses: ctrliq/kernel-src-tree/.github/workflows/kernel-build-and-test-multiarch.yml@main
+    uses: ctrliq/kernel-src-tree/.github/workflows/kernel-build-and-test-multiarch.yml@{bmastbergen}_main
     with:
       skip_kabi: true
     secrets: inherit
