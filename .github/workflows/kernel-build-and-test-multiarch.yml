@@ -281,8 +281,8 @@ jobs:
   compare-results:
     name: Compare with previous run (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    needs: [setup, test-kselftest]
-    if: ${{ !inputs.skip_kselftests && (success() || failure()) }}
+    needs: [setup, build, boot, test-kselftest]
+    if: ${{ always() && needs.build.result == 'success' && needs.boot.result == 'success' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -298,6 +298,7 @@ jobs:
         fetch-depth: 1  # Shallow clone - only current commit needed for comparison logic
 
     - name: Download current kselftest logs
+      if: ${{ !inputs.skip_kselftests }}
       uses: actions/download-artifact@v4
       with:
         name: kselftest-logs-${{ matrix.arch }}
@@ -381,7 +382,7 @@ jobs:
         echo "Base branch for comparison: $BASE_BRANCH"
 
     - name: Download baseline kselftest logs from last merged PR targeting same base
-      if: steps.base_branch.outputs.base_branch != ''
+      if: ${{ !inputs.skip_kselftests && steps.base_branch.outputs.base_branch != '' }}
       env:
         GH_TOKEN: ${{ steps.generate_token_compare.outputs.token }}
       run: |
@@ -474,6 +475,7 @@ jobs:
 
     - name: Compare test results
       id: comparison
+      if: ${{ !inputs.skip_kselftests }}
       run: |
         # Check if we have a base branch to compare against
         if [ -z "${{ steps.base_branch.outputs.base_branch }}" ]; then
