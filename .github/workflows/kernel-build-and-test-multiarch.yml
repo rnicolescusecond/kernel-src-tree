@@ -543,7 +543,10 @@ jobs:
     name: Create Pull Request
     runs-on: kernel-build
     needs: [setup, build, boot, test-kselftest, compare-results]
-    if: success() || failure()
+    if: |
+      always() &&
+      needs.build.result == 'success' &&
+      needs.boot.result == 'success'
 
     steps:
     - name: Check if branch name contains curly brackets
