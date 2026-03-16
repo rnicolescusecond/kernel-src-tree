@@ -797,6 +797,12 @@ jobs:
         COMPARISON_STATUS_X86="${{ needs.compare-results.outputs.comparison_status_x86_64 }}"
         COMPARISON_STATUS_ARM="${{ needs.compare-results.outputs.comparison_status_aarch64 }}"
 
+        # When kselftests are skipped, comparison step doesn't run so status is empty — treat as skipped
+        if [ "${{ inputs.skip_kselftests }}" = "true" ]; then
+          [ -z "$COMPARISON_STATUS_X86" ] && COMPARISON_STATUS_X86="skipped"
+          [ -z "$COMPARISON_STATUS_ARM" ] && COMPARISON_STATUS_ARM="skipped"
+        fi
+
         # Create comparison section - use printf to avoid code block formatting
         COMPARISON_SECTION="### Test Comparison"
 
