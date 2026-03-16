@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: 'x86_64,aarch64'
+      skip_kselftests:
+        description: 'Skip the kselftests stage (e.g. for CBR where kselftest coverage is minimal)'
+        required: false
+        type: boolean
+        default: false
     secrets:
       APP_ID:
         required: true
@@ -208,6 +213,7 @@ jobs:
     name: Run kselftests (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: [setup, boot]
+    if: ${{ !inputs.skip_kselftests }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -276,7 +282,7 @@ jobs:
     name: Compare with previous run (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: [setup, test-kselftest]
-    if: success() || failure()
+    if: ${{ !inputs.skip_kselftests && (success() || failure()) }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -551,10 +557,12 @@ jobs:
 
     - name: Check if tests passed and no regressions
       run: |
-        # Skip PR if any test stage failed
+        # Skip PR if any required stage failed
+        # test-kselftest is optional when skip_kselftests is true (result will be 'skipped')
+        KSELFTEST_RESULT="${{ needs.test-kselftest.result }}"
         if [ "${{ needs.build.result }}" != "success" ] || \
            [ "${{ needs.boot.result }}" != "success" ] || \
-           [ "${{ needs.test-kselftest.result }}" != "success" ]; then
+           ( [ "$KSELFTEST_RESULT" != "success" ] && [ "$KSELFTEST_RESULT" != "skipped" ] ); then
           echo "One or more test stages failed, skipping PR creation"
           exit 1
         fi
@@ -650,14 +658,14 @@ jobs:
         path: artifacts/boot/aarch64
 
     - name: Download kselftest logs (x86_64)
-      if: steps.detect_arch.outputs.has_x86_64 == 'true'
+      if: steps.detect_arch.outputs.has_x86_64 == 'true' && !inputs.skip_kselftests
       uses: actions/download-artifact@v4
       with:
         name: kselftest-logs-x86_64
         path: artifacts/test/x86_64
 
     - name: Download kselftest logs (aarch64)
-      if: steps.detect_arch.outputs.has_aarch64 == 'true'
+      if: steps.detect_arch.outputs.has_aarch64 == 'true' && !inputs.skip_kselftests
       uses: actions/download-artifact@v4
       with:
         name: kselftest-logs-aarch64
@@ -670,23 +678,23 @@ jobs:
         HAS_ARM="${{ steps.detect_arch.outputs.has_aarch64 }}"
 
         # x86_64 stats
-        if [ "$HAS_X86" = "true" ]; then
+        if [ "$HAS_X86" = "true" ] && ls artifacts/test/x86_64/kselftests-*.log 1>/dev/null 2>&1; then
           PASSED_X86=$(grep -a '^ok' artifacts/test/x86_64/kselftests-*.log | wc -l || echo "0")
           FAILED_X86=$(grep -a '^not ok' artifacts/test/x86_64/kselftests-*.log | wc -l || echo "0")
         else
-          PASSED_X86="0"
-          FAILED_X86="0"
+          PASSED_X86="N/A"
+          FAILED_X86="N/A"
         fi
         echo "passed_x86_64=$PASSED_X86" >> $GITHUB_OUTPUT
         echo "failed_x86_64=$FAILED_X86" >> $GITHUB_OUTPUT
 
         # aarch64 stats
-        if [ "$HAS_ARM" = "true" ]; then
+        if [ "$HAS_ARM" = "true" ] && ls artifacts/test/aarch64/kselftests-*.log 1>/dev/null 2>&1; then
           PASSED_ARM=$(grep -a '^ok' artifacts/test/aarch64/kselftests-*.log | wc -l || echo "0")
           FAILED_ARM=$(grep -a '^not ok' artifacts/test/aarch64/kselftests-*.log | wc -l || echo "0")
         else
-          PASSED_ARM="0"
-          FAILED_ARM="0"
+          PASSED_ARM="N/A"
+          FAILED_ARM="N/A"
         fi
         echo "passed_aarch64=$PASSED_ARM" >> $GITHUB_OUTPUT
         echo "failed_aarch64=$FAILED_ARM" >> $GITHUB_OUTPUT
