@@ -889,20 +889,27 @@ jobs:
         if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
           PR_NUMBER=$(echo "$EXISTING_PR" | jq -r '.number')
           CURRENT_BASE=$(echo "$EXISTING_PR" | jq -r '.baseRefName')
-
+          IS_WORKFLOW_PR=$(echo "$EXISTING_PR" | jq -r '.labels[].name' | grep -q "created-by-kernelci" && echo "true" || echo "false"
           echo "Found existing PR #$PR_NUMBER (current base: $CURRENT_BASE)"
 
-          # Update PR title and body
-          gh pr edit "$PR_NUMBER" \
-            --title "[$BASE_BRANCH] ${{ steps.commit_msg.outputs.commit_subject }}" \
-            --body-file pr_body.md
+          if [ "$IS_WORKFLOW_PR" = "true" ]; then
+            # Update PR title and body
+            gh pr edit "$PR_NUMBER" \
+              --title "[$BASE_BRANCH] ${{ steps.commit_msg.outputs.commit_subject }}" \
+              --body-file pr_body.md
 
-          echo "Updated PR #$PR_NUMBER"
+            echo "Updated PR #$PR_NUMBER"
 
-          # Note: We don't change the base branch even if it differs from $BASE_BRANCH
-          # because compare-results already used the existing PR's base for comparison
-          if [ "$CURRENT_BASE" != "$BASE_BRANCH" ]; then
-            echo "::notice::PR base remains $CURRENT_BASE (comparison was done against this base)"
+            # Note: We don't change the base branch even if it differs from $BASE_BRANCH
+            # because compare-results already used the existing PR's base for comparison
+            if [ "$CURRENT_BASE" != "$BASE_BRANCH" ]; then
+              echo "::notice::PR base remains $CURRENT_BASE (comparison was done against this base)"
+            fi
+          else
+            echo "Manually created PR #$PR_NUMBER, adding comment instead"
+            gh pr comment "$PR_NUMBER" \
+              --repo "${{ github.repository }}" \
+              --body-file pr_body.md
           fi
         else
           echo "Creating new PR from ${{ github.ref_name }} to $BASE_BRANCH"
@@ -910,5 +917,6 @@ jobs:
             --base "$BASE_BRANCH" \
             --head "${{ github.ref_name }}" \
             --title "[$BASE_BRANCH] ${{ steps.commit_msg.outputs.commit_subject }}" \
-            --body-file pr_body.md
+            --body-file pr_body.md \
+            --label "created-by-kernelci"
         fi
